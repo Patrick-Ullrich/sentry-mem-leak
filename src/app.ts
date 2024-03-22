@@ -1,43 +1,25 @@
-import express from 'express'; // express server
 import * as Sentry from '@sentry/node';
+import express from 'express';
 
-import type { Application } from 'express';
-
-import { UserController } from './controllers/User/User';
-import { EventController } from './controllers/Event/Event';
-
-export const app: Application = express();
-
+const app = express();
 Sentry.init({
-  dsn: process.env.SENTRY_DNS,
-  release: 'SET_APP_VERSION',
-  environment: process.env.NODE_ENV,
-  integrations: [
-    // enable HTTP calls tracing
-    new Sentry.Integrations.Http({ tracing: true }),
-    // enable Express.js middleware tracing
-    new Sentry.Integrations.Express({
-      // to trace all requests to the default router
-      app,
-      // alternatively, you can specify the routes you want to trace:
-      // router: someRouter,
-      methods: ['post', 'get', 'delete'],
-    }),
-  ],
-
-  ignoreTransactions: ['/api/health'],
-
-  // We recommend adjusting this value in production, or using tracesSampler
-  // for finer control
+  dsn: '',
+  integrations: [new Sentry.Integrations.Express({ app: app })],
+  sampleRate: 0,
   tracesSampleRate: 0,
 });
 
-app.disable('x-powered-by');
-
-app.use(Sentry.Handlers.requestHandler());
+// ❌  mem leak :(
 app.use(Sentry.Handlers.tracingHandler());
-app.use(express.json({ limit: '35mb' }));
+app.use(Sentry.Handlers.requestHandler());
 
-app.get('/logs', UserController.isAuthenticated, EventController.list);
+// ✅ No mem leak
+// app.use(Sentry.Handlers.requestHandler());
+// app.use(Sentry.Handlers.tracingHandler());
 
-app.use(Sentry.Handlers.errorHandler());
+app.get('/test', (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.log('health check');
+  res.send({ connected: 'true' });
+});
+
+app.listen(3000);
